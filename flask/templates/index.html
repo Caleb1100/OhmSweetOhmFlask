@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        h1, h2 {
+            color: #333;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        #dashboardContainer {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            align-items: center;
+        }
+
+        #sensorData, #applianceControls {
+            background-color: #fff;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: calc(100% - 40px);
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 20px;
+            justify-items: center;
+            width: 100%;
+        }
+
+        .grid-container > div {
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            width: 100%;
+        }
+
+        button {
+            background-color: #0084ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        canvas {
+            margin-top: 10px;
+        }
+
+        #applianceControls {
+            text-align: center;
+        }
+
+        #applianceControls button {
+            display: inline-block;
+            width: calc(50% - 10px);
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="dashboardContainer">
+        <h1>Sensor Dashboard</h1>
+        <div id="sensorData">
+            <div class="header">
+                <h2>Sensor Readings</h2>
+            </div>
+            <div class="grid-container">
+                <div>
+                    <p>Waste Water Level: <span id="wasteWaterLevel"></span>%</p>
+                    <canvas id="wasteWaterCanvas" width="200" height="100"></canvas>
+                </div>
+                <div>
+                    <p>Water Pressure: <span id="waterPressureLevel"></span>PSI</p>
+                    <canvas id="waterPressureCanvas" width="200" height="100"></canvas>
+                </div>
+                <div>
+                    <p>Gas Level: <span id="gasLevel"></span>%</p>
+                    <canvas id="gasCanvas" width="200" height="100"></canvas>
+                </div>
+                <div>
+                    <p>Air Quality: <span id="airQuality"></span></p>
+                    <canvas id="airQualityCanvas" width="200" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+        <div id="applianceControls">
+            <h2>Appliance Controls</h2>
+            <button id="toggleLight">Toggle Light</button>
+            <button id="toggleAwning">Toggle Awning</button>
+        </div>
+    </div>
+
+    <script>
+        const updateSensorData = () => {
+            fetch('/api/sensor_data')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('wasteWaterLevel').textContent = data.wasteWaterLevel;
+                    document.getElementById('waterPressureLevel').textContent = data.waterPressureLevel;
+                    document.getElementById('gasLevel').textContent = data.gasLevel;
+                    document.getElementById('airQuality').textContent = data.airQuality;
+
+                    drawGauge('wasteWaterCanvas', data.wasteWaterLevel, 100);
+                    drawGauge('waterPressureCanvas', data.waterPressureLevel, 120);
+                    drawGauge('gasCanvas', data.gasLevel, 100);
+                    drawGauge('airQualityCanvas', data.airQuality === 'Good' ? 100 : 0, 100);
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        };
+
+        const drawGauge = (canvasId, value, max) => {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = 45;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, 2 * Math.PI);
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 10;
+            ctx.stroke();
+
+            const endAngle = Math.PI + (Math.PI * value / max);
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, endAngle, false);
+            ctx.strokeStyle = 'green';
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            const needleLength = radius * 0.8;
+            const needleAngle = endAngle - 0.05;
+            ctx.lineTo(centerX + needleLength * Math.cos(needleAngle), centerY + needleLength * Math.sin(needleAngle));
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        };
+
+        const toggleLight = () => {
+            fetch('/api/toggle_light', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(`Light toggled! Response: ${data.status}`);
+                    document.getElementById('toggleLight').style.backgroundColor = data.status === 'on' ? 'blue' : 'gray';
+                })
+                .catch(error => {
+                    alert('Error toggling light');
+                    console.error(error);
+                });
+        };
+
+        const toggleAwning = () => {
+            fetch('/api/toggle_awning', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(`Awning toggled! Response: ${data.status}`);
+                    document.getElementById('toggleAwning').style.backgroundColor = data.status === 'on' ? 'blue' : 'gray';
+                })
+                .catch(error => {
+                    alert('Error toggling awning');
+                    console.error(error);
+                });
+        };
+
+        document.getElementById('toggleLight').addEventListener('click', toggleLight);
+        document.getElementById('toggleAwning').addEventListener('click', toggleAwning);
+
+        updateSensorData();
+        setInterval(updateSensorData, 5000);
+    </script>
+</body>
+</html>
